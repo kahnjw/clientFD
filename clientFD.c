@@ -12,7 +12,7 @@
 #include <netdb.h>
 #include <sys/stat.h>
 
-#define MSG_SEND 1024 * 24
+#define NUM_CONNS 4
 
 // You may/may not use pthread for the client code. The client is communicating with
 // the server most of the time until he recieves a "GET <file>" request from another client.
@@ -24,13 +24,15 @@ FILE * getFiles(){
 
 int main(int argc, char *argv[]) {
 
-	char s[1000];
+	char s[1024 * 4];
+
 	char * pch;
 	char filePath[1000] = "";
 	char tempFileInfo[1100];
-	char allFileInfo[1100 * 5];
+	char allFileInfo[1024 * 4];
 	char fileSize[30];
 	struct stat st;
+	fd_set connset;
 
 	if(argc != 5) {
 		printf("Usage: ./clientFD <HOST> <PORT_NUMBER> <COMMA ',' DELINEATED FILE LIST> <USERNAME>\n");
@@ -100,10 +102,37 @@ int main(int argc, char *argv[]) {
 	}
 
 	while(1) {
+		
+		printf("clientFD $: ");
 
-		gets(s);
-		if(send(sockfd, s, sizeof(s), NULL) < 0) {
-			perror("send()");
+		FD_ZERO(&connset);
+		FD_SET(sockfd,&connset); /* add sockfd to connset */
+	    FD_SET(STDIN_FILENO,&connset); /* add STDIN to connset */	
+
+	    if(select(NUM_CONNS + 1, &connset,NULL,NULL,NULL) < 0){
+        	fprintf(stdout, "select() error\n");
+        	exit(0);
+    	}  
+
+    	if( FD_ISSET(STDIN_FILENO, &connset) ) {
+    		
+    		gets(s);
+
+    		if(send(sockfd, s, sizeof(s), NULL) < 0) {
+				perror("send()");
+				exit(1);
+			}
+    	}
+		
+		if (FD_ISSET(sockfd, &connset)) {
+			
+			if(recv(sockfd, s, sizeof(s), 0) < 0) {
+				perror("recv()");
+				exit(1);
+			}
+
+			printf("Recieved from server: %s\n", s);
+		
 		}
 		
 	}
