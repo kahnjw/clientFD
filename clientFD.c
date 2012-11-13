@@ -24,12 +24,12 @@ FILE * getFiles(){
 
 int main(int argc, char *argv[]) {
 
-	char s[1024 * 4];
+	char s[1024 * 24];
 
 	char * pch;
 	char filePath[1000] = "";
 	char tempFileInfo[1100];
-	char allFileInfo[1024 * 4];
+	char allFileInfo[1024 * 24];
 	char fileSize[30];
 	struct stat st;
 	fd_set connset;
@@ -103,8 +103,6 @@ int main(int argc, char *argv[]) {
 
 	while(1) {
 		
-		printf("clientFD $: ");
-
 		FD_ZERO(&connset);
 		FD_SET(sockfd,&connset); /* add sockfd to connset */
 	    FD_SET(STDIN_FILENO,&connset); /* add STDIN to connset */	
@@ -113,8 +111,21 @@ int main(int argc, char *argv[]) {
         	fprintf(stdout, "select() error\n");
         	exit(0);
     	}  
+		
+		if (FD_ISSET(sockfd, &connset)) {
+			
+			bzero(s, sizeof(s));
+			
+			if(recv(sockfd, s, sizeof(s), 0) < 0) {
+				perror("recv()");
+				exit(1);
+			}
 
-    	if( FD_ISSET(STDIN_FILENO, &connset) ) {
+			printf("\nRecieved from server:\n%s ", s);
+
+		}
+
+		if( FD_ISSET(STDIN_FILENO, &connset) ) {
     		
     		gets(s);
 
@@ -122,20 +133,9 @@ int main(int argc, char *argv[]) {
 				perror("send()");
 				exit(1);
 			}
+
     	}
-		
-		if (FD_ISSET(sockfd, &connset)) {
-			
-			if(recv(sockfd, s, sizeof(s), 0) < 0) {
-				perror("recv()");
-				exit(1);
-			}
 
-			printf("Recieved from server: %s\n", s);
-		
-		}
-		
 	}
-
 	return 0;
 }
