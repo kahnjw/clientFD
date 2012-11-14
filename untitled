@@ -20,7 +20,7 @@
 // You can be creative here and design a code similar to the server to handle multiple connections.
 
 int sendFile(char fileName[]);
-int recvFile(char * fileName);
+int recFile(char * s);
 
 FILE * getFiles(){
 	return popen("ls sharedFiles/", "r");
@@ -46,36 +46,12 @@ int main(int argc, char *argv[]) {
 	struct stat st;
 	fd_set connset;
 
-	int listener;
+
 	int sockfd;
 
-	struct addrinfo hints, *res;
-    struct sockaddr_storage remoteaddr; // client address
-    socklen_t addrlen;
+	
 
-    memset(&hints, 0, sizeof hints); // make sure the struct is empty
-    hints.ai_family = AF_UNSPEC;     // don't care IPv4 or IPv6
-    hints.ai_flags = AI_PASSIVE;     // fill in my IP for me
-    hints.ai_socktype = SOCK_STREAM; // TCP stream sockets
-
-    getaddrinfo(NULL, argv[1], &hints, &res);
-
-    listener = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-
-    if(listener < 0){
-        perror("socket()");
-        exit(1);
-    }
-
-    if( bind(listener, res->ai_addr, res->ai_addrlen) < 0 ){
-        printf("bind() error\n");
-        exit(1);
-    }
-
-    if(listen(listener, BACKLOG)) {
-        perror("linsten()");
-        exit(1);
-    }
+    
 
 	if(argc != 5) {
 		printf("Usage: ./clientFD <HOST> <PORT_NUMBER> <COMMA ',' DELINEATED FILE LIST> <USERNAME>\n");
@@ -84,10 +60,7 @@ int main(int argc, char *argv[]) {
 
 	
 
-	// first, load up address structs with getaddrinfo():
-	memset(&hints, 0, sizeof hints);
-	hints.ai_family = AF_UNSPEC;  // use IPv4 or IPv6, whichever
-	hints.ai_socktype = SOCK_STREAM;
+
 
 	getaddrinfo(argv[1], argv[2], &hints, &res);
 
@@ -166,6 +139,7 @@ int main(int argc, char *argv[]) {
 			if(s[0] == '?') {
 				pch = strtok(s, "/");
 				pch = strtok(NULL, "/");
+
 				sendFile(pch);
 
 			} else {
@@ -178,13 +152,15 @@ int main(int argc, char *argv[]) {
 		if( FD_ISSET(STDIN_FILENO, &connset) ) {
     		
     		gets(s);
-    		recvFile(s);
+    		recFile(s);
+
     		if(send(sockfd, s, sizeof(s), 0) < 0) {
 				perror("send()");
 				exit(1);
 			}
-			
 			printf("");
+
+			
     	}
     	
 	}
@@ -193,45 +169,93 @@ int main(int argc, char *argv[]) {
 
 
 int sendFile(char fileName[]) {
-	char * cmd;
-	char filePath[100];
-	FILE * file;
-
-	cmd = strtok(fileName, " ");
-	bzero(filePath, sizeof(filePath));
-
-
-
-	if(!strcmp(cmd, "Get")){
-		cmd = strtok(NULL, " ");
-		printf("sendFile Get cmd\n");
-		strcat(filePath, "sharedFiles/");
-		strcat(filePath, cmd);
-
-		if((file = fopen(filePath, "r")) < 0) {
-			perror("fopen()");
-			exit(1);
-		}
-		//fclose(file);
-	}
-
-	return 0;
-}
-
-int recvFile(char * fileName) {
 	
+	char fileContents[1024];
+	char s[1024 * 24];
 	char filePath[100];
 	FILE * file;
+	int listener;
 
+	struct addrinfo hints, *res;
+    struct sockaddr_storage remoteaddr; // client address
+    socklen_t addrlen;
+
+    memset(&hints, 0, sizeof hints); // make sure the struct is empty
+    hints.ai_family = AF_UNSPEC;     // don't care IPv4 or IPv6
+    hints.ai_flags = AI_PASSIVE;     // fill in my IP for me
+    hints.ai_socktype = SOCK_STREAM; // TCP stream sockets
+
+    getaddrinfo(NULL, argv[1], &hints, &res);
+
+   	// first, load up address structs with getaddrinfo():
+	memset(&hints, 0, sizeof hints);
+	hints.ai_family = AF_UNSPEC;  // use IPv4 or IPv6, whichever
+	hints.ai_socktype = SOCK_STREAM;
+
+	listener = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+
+    if(listener < 0){
+        perror("socket()");
+        exit(1);
+    }
+
+    if( bind(listener, res->ai_addr, res->ai_addrlen) < 0 ){
+        printf("bind() error\n");
+        exit(1);
+    }
+
+    if(listen(listener, BACKLOG)) {
+        perror("linsten()");
+        exit(1);
+    }
+
+	bzero(fileContents, sizeof(fileContents));
+	bzero(s, sizeof(s));
+	bzero(filePath, sizeof(filePath));
+	
 	strcat(filePath, "sharedFiles/");
 	strcat(filePath, fileName);
-	printf("recvFile\n");
-	if((file = fopen(filePath, "w")) < 0) {
-		perror("fopen()");
+
+	file = fopen(filePath, "r");
+
+	fread(s, 1, 1024 * 24, file);
+
+	if(send(sockid, s, sizeof(s), 0) < 0) {
+		perror("send()");
 		exit(1);
 	}
 
-	//fclose(file);
+	printf("Socket: %d, Filename: %s\n", sockid, fileName);
+	return 0;
+}
 
+int recFile(char * s){
+	char * cmd;
+	cmd = strtok(s, " ");
+	FILE * newFile;
+	char filePath[100];
+	char message[1024 * 24];
+
+	bzero(filePath, sizeof(filePath));
+
+	printf("recFile() called\n");
+	
+	if(!strcmp(cmd, "Get")) {
+		printf("Is a get\n");
+		cmd = strtok(NULL, " ");
+
+		strcat(filePath, "sharedFiles/");
+		strcat(filePath, cmd);
+
+		newFile = fopen(filePath, "w");
+		sleep(1);
+		if(recv(sockid, message, sizeof(message), MSG_WAITALL) < 0) {
+			perror("recv()");
+			exit(1);
+		}
+
+		// fread(s, 1, 1024 * 24, newFile);
+
+	}
 	return 0;
 }
